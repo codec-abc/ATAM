@@ -1,0 +1,8 @@
+build/*
+data/*
+src/datadir/*
+src/cvsba/*
+!.gitignore
+build/
+*.in
+Makefile
