@@ -50,8 +50,15 @@ private:
 	bool computePose(void);
 
 	// mapping
-	void computePosefromE(const std::vector<cv::Point2f> &vUnPt1, const std::vector<cv::Point2f> &vUnPt2, cv::Mat &rvec, cv::Mat &tvec) const;
-	void triangulate(const std::vector<cv::Point2f> &vUnPt1, const std::vector<cv::Point2f> &vUnPt2, const sPose &pose1, const sPose &pose2, std::vector<cv::Point3f> &vpt3d) const;
+	//void computePosefromE(const std::vector<cv::Point2f> &vUnPt1, const std::vector<cv::Point2f> &vUnPt2, cv::Mat &rvec, cv::Mat &tvec) const;
+	void triangulate
+    (
+        const std::vector<cv::Point2f> &vUnPt1, 
+        const std::vector<cv::Point2f> &vUnPt2, 
+        const sPose &pose1, 
+        const sPose &pose2, 
+        std::vector<cv::Point3f> &vpt3d
+    ) const;
 	
 	bool makeMap(void);
 	bool mappingCriteria(void) const;
@@ -61,6 +68,7 @@ private:
 
 #if DO_BA
 	void BA(void);
+
     bool initialBA
     (
         std::vector<cv::Point3f> &vPt3d,	

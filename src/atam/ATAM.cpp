@@ -813,27 +813,27 @@ bool CATAM::computePose(void)
 @param[out]	rvec	rotation vector
 @param[out]	tvec	translation vector
 */
-void CATAM::computePosefromE(
-    const std::vector<cv::Point2f> &vunpt1,
-    const std::vector<cv::Point2f> &vunpt2,
-    cv::Mat &rvec,
-    cv::Mat &tvec
-) const
-{
-    double focal = 1.0;
-    cv::Point2d pp = cv::Point2d(0, 0);
-    int method = cv::LMEDS;
-    double prob = 0.99;
-    double th = 1.0 / mData.focal;
-
-    cv::Mat mask;
-    cv::Mat e = cv::findEssentialMat(vunpt1, vunpt2, focal, pp, method, prob, th, mask);
-
-    cv::Mat r;
-    cv::recoverPose(e, vunpt1, vunpt2, r, tvec, focal, pp, mask);
-
-    cv::Rodrigues(r, rvec);
-}
+//void CATAM::computePosefromE(
+//    const std::vector<cv::Point2f> &vunpt1,
+//    const std::vector<cv::Point2f> &vunpt2,
+//    cv::Mat &rvec,
+//    cv::Mat &tvec
+//) const
+//{
+//    double focal = 1.0;
+//    cv::Point2d pp = cv::Point2d(0, 0);
+//    int method = cv::LMEDS;
+//    double prob = 0.99;
+//    double th = 1.0 / mData.focal;
+//
+//    cv::Mat mask;
+//    cv::Mat e = cv::findEssentialMat(vunpt1, vunpt2, focal, pp, method, prob, th, mask);
+//
+//    cv::Mat r;
+//    cv::recoverPose(e, vunpt1, vunpt2, r, tvec, focal, pp, mask);
+//
+//    cv::Rodrigues(r, rvec);
+//}
 
 /*!
 @brief		triangulation
@@ -1044,10 +1044,11 @@ bool CATAM::makeMap(void)
         sPose tmpPose = lkf.pose;
         #if DO_BA
 
-       /* for (auto it = vPt3d.begin(); it != vPt3d.end(); it++)
+        /* for (auto it = vPt3d.begin(); it != vPt3d.end(); it++)
         {
             std::cout << it->x << " " << it->y << " " << it->z << std::endl;
-        }*/
+        }
+        */
 
         if (!initialBA(vPt3d, vStart, vEnd, tmpPose, mPose))
         {
@@ -1055,7 +1056,8 @@ bool CATAM::makeMap(void)
         }
         else
         {
-            /*std::cout << "------------" << std::endl;
+            /*
+            std::cout << "------------" << std::endl;
             std::cout << "------------" << std::endl;
             std::cout << "------------" << std::endl;
             std::cout << "------------" << std::endl;
@@ -1064,7 +1066,8 @@ bool CATAM::makeMap(void)
             for (auto it = vPt3d.begin(); it != vPt3d.end(); it++)
             {
                 std::cout << it->x << " " << it->y << " " << it->z << std::endl;
-            }*/
+            }
+            */
 
             lkf.pose = tmpPose;
         }
@@ -1592,7 +1595,7 @@ void CATAM::registerWorld(void)
 
         mData.haveScale = true;
 
-        std::cout << "!!!!! Average scale factor is " << mData.scale << std::endl;
+        std::cout << "Average scale factor is " << mData.scale << std::endl;
 
         mText = "Capture more for improvement";
     }
