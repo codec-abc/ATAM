@@ -381,6 +381,12 @@ sATAMParams::sATAMParams()
 
     RELOCALHIST = 3;
 
+    MIN_STEREO_DIST = 30;
+    MIN_FEATURES_POINT = 50;
+    RESET_BELOW_NB_POINTS = 50;
+    MAX_REPRO_ERROR = 2;
+    BA_MAX_ERROR = 1;
+
     VIDEONAME = strData + "movie.avi";
     USEVIDEO = false;
 
@@ -415,6 +421,12 @@ void sATAMParams::loadParams(const std::string &name)
         cv::write(fs, "MATCHKEYFRAME", MATCHKEYFRAME);
         cv::write(fs, "RELOCALHIST", RELOCALHIST);
 
+        cv::write(fs, "MIN_STEREO_DIST", MIN_STEREO_DIST);
+        cv::write(fs, "MIN_FEATURES_POINT", MIN_FEATURES_POINT);
+        cv::write(fs, "RESET_BELOW_NB_POINTS", RESET_BELOW_NB_POINTS);
+        cv::write(fs, "MAX_REPRO_ERROR", MAX_REPRO_ERROR);
+        cv::write(fs, "BA_MAX_ERROR", BA_MAX_ERROR);
+
         cv::write(fs, "USEVIDEO", int(USEVIDEO));
         cv::write(fs, "VIDEONAME", VIDEONAME);
 
@@ -436,6 +448,12 @@ void sATAMParams::loadParams(const std::string &name)
         PATCHSIZE = node["PATCHSIZE"];
         MATCHKEYFRAME = node["MATCHKEYFRAME"];
         RELOCALHIST = node["RELOCALHIST"];
+
+        MIN_STEREO_DIST = node["MIN_STEREO_DIST"];
+        MIN_FEATURES_POINT = node["MIN_FEATURES_POINT"];
+        RESET_BELOW_NB_POINTS = node["RESET_BELOW_NB_POINTS"];
+        MAX_REPRO_ERROR = node["MAX_REPRO_ERROR"];
+        BA_MAX_ERROR = node["BA_MAX_ERROR"];
 
         USEVIDEO = int(node["USEVIDEO"]) == 1 ? true : false;
         VIDEONAME = std::string(node["VIDEONAME"]);

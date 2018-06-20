@@ -146,6 +146,12 @@ struct sATAMParams
 	std::string VIDEONAME;		//!< video file name
 
 	std::string CAMERANAME;		//!< camera parameter file name	
+
+    float MIN_STEREO_DIST;
+    int MIN_FEATURES_POINT;
+    int RESET_BELOW_NB_POINTS;
+    float MAX_REPRO_ERROR;
+    float BA_MAX_ERROR;
 };
 
 /*!

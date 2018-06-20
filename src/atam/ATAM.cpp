@@ -9,11 +9,11 @@
 #include <numeric> 
 #include <fstream>
 
-#define MIN_STEREO_DIST 40
-#define MIN_FEATURES_POINT 120
-#define RESET_BELOW_NB_POINTS 120
-#define MAX_REPRO_ERROR 2.3
-#define BA_MAX_ERROR 1
+//#define MIN_STEREO_DIST 0
+//#define MIN_FEATURES_POINT 10
+//#define RESET_BELOW_NB_POINTS 10
+//#define MAX_REPRO_ERROR 30
+//#define BA_MAX_ERROR 10
 
 
 extern sATAMParams PARAMS;		//!< parameters in ATAM
@@ -217,13 +217,13 @@ void CATAM::process(void)
             }
             //std::cout << "[3] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
 
-            if (mappedPoints < RESET_BELOW_NB_POINTS)
+            if (mappedPoints < PARAMS.RESET_BELOW_NB_POINTS)
             {
                 reset();
                 return;
             }
 
-            if (found && mData.vPosePair.size() == 0 && mappedPoints > MIN_FEATURES_POINT && reproError < MAX_REPRO_ERROR)
+            if (found && mData.vPosePair.size() == 0 && mappedPoints > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
             {
                 std::cout << "3- Change state at " << mFrameNumber << ", repro error " << reproError << std::endl;
                 registerWorld();
@@ -233,7 +233,7 @@ void CATAM::process(void)
                 _z = tvec.at<double>(2);
 
             }
-            else if (found && nbFeatureTrackedPoint > MIN_FEATURES_POINT && reproError < MAX_REPRO_ERROR)
+            else if (found && nbFeatureTrackedPoint > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
             {
                 double x = tvec.at<double>(0);
                 double y = tvec.at<double>(1);
@@ -241,7 +241,7 @@ void CATAM::process(void)
 
                 double dist = sqrt((x - _x) * (x - _x) + (y - _y) * (y - _y));//  +(z - _z) * (z - _z)
 
-                if (dist > MIN_STEREO_DIST)
+                if (dist > PARAMS.MIN_STEREO_DIST)
                 {
                     std::cout << "4- Change state at " << mFrameNumber << ", dist is " << dist << std::endl;
                     /*std::cout << x << " " << y << " " << z << std::endl;
@@ -271,7 +271,7 @@ void CATAM::process(void)
                 }
                 totalPoints++;
             }
-            if (mappedPoints < RESET_BELOW_NB_POINTS)
+            if (mappedPoints < PARAMS.RESET_BELOW_NB_POINTS)
             {
                 std::cout << "RESETTING because not enough tracked points" << std::endl;
                 reset();
@@ -309,7 +309,7 @@ void CATAM::startInit(void)
     cv::Mat rvec, tvec;
     double reproError = 0;
     bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
-    if (found && reproError < MAX_REPRO_ERROR)
+    if (found && reproError < PARAMS.MAX_REPRO_ERROR)
     {
         _x = tvec.at<double>(0);
         _y = tvec.at<double>(1);
@@ -344,7 +344,7 @@ void CATAM::startInit(void)
 
             //std::cout << "[1] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
 
-            if (newPoints < MIN_FEATURES_POINT || reproError >= MAX_REPRO_ERROR)
+            if (newPoints < PARAMS.MIN_FEATURES_POINT || reproError >= PARAMS.MAX_REPRO_ERROR)
             {
                 reset();
                 return;
@@ -379,7 +379,7 @@ void CATAM::startTAM(void)
     cv::Mat rvec, tvec;
     double reproError = 0;
     bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
-    if (makeMap() && found && _lastFrameAction != mFrameNumber && reproError < MAX_REPRO_ERROR)
+    if (makeMap() && found && _lastFrameAction != mFrameNumber && reproError < PARAMS.MAX_REPRO_ERROR)
     {
         std::cout << "startTAM with repro error " << reproError << std::endl;
         // set keyframe
@@ -948,7 +948,7 @@ bool CATAM::initialBA(
 
         double reproError = mBA.getInitialReprjError();
 
-        if (reproError > BA_MAX_ERROR)
+        if (reproError > PARAMS.BA_MAX_ERROR)
         {
             return false;
         }
@@ -1297,14 +1297,14 @@ void CATAM::whileInitialize(void)
             totalPoints++;
         }
 
-        if (newPoints < RESET_BELOW_NB_POINTS)
+        if (newPoints < PARAMS.RESET_BELOW_NB_POINTS)
         {
             reset();
             return;
         }
         //std::cout << "[2] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
 
-        if (found && nbTrackedFeaturePoints > MIN_FEATURES_POINT && reproError < MAX_REPRO_ERROR)
+        if (found && nbTrackedFeaturePoints > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
         {
             double x = tvec.at<double>(0);
             double y = tvec.at<double>(1);
@@ -1314,7 +1314,7 @@ void CATAM::whileInitialize(void)
 
             //printf("dist is %f \n", dist);
             //printf("tracked points is %i with %i \n", nbTrackedPoints, nbTrackedFeaturePoints);
-            if (dist > MIN_STEREO_DIST && reproError < MAX_REPRO_ERROR)
+            if (dist > PARAMS.MIN_STEREO_DIST && reproError < PARAMS.MAX_REPRO_ERROR)
             {
 
                 _rvecInit2 = rvec;
@@ -1446,7 +1446,7 @@ void CATAM::BA(void)
 
                     double reproError = mBA.getInitialReprjError();
 
-                    if (reproError > BA_MAX_ERROR)
+                    if (reproError > PARAMS.BA_MAX_ERROR)
                     {
                         _needReset = true;
                     }
