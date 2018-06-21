@@ -153,6 +153,7 @@ bool CMapData::CopytoBA(sBAData &data)
 
         if (mvPt.size() == 0)
         {
+            mMapMutex.unlock();
             return false;
         }
 
@@ -287,7 +288,6 @@ void CMapData::UpdateLastKeyframe(
     lKf.vDesc.push_back(vDesc);
 
     //LOGOUT("Added %d points Total keypoints %d in keyframe %d\n", int(vPt3d.size()), int(lKf.vKpt.size()), lKf.ID);
-
     mMapMutex.unlock();
 }
 

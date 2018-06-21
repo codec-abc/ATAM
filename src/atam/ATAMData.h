@@ -114,7 +114,7 @@ public:
 private:
 	std::vector<cv::Point3f> mvPt;	//!< 3D points in map
 	std::vector<sKeyframe> mvKf;	//!< keyframes
-	std::mutex mMapMutex;				//!< mutex
+	std::recursive_mutex mMapMutex;				//!< mutex
 	bool mAdded;					//!< keyframe added and not used in BA
 };
 

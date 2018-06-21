@@ -251,7 +251,9 @@ namespace cvsba {
             throw cv::Exception(8888, "Invalid Sba mode", "Sba::run", __FILE__, __LINE__);
         }
         if (sbaerror == SBA_ERROR)
+        {
             throw cv::Exception(8888, "Error occured during Sba optimization", "Sba::run", __FILE__, __LINE__);
+        }
 
         _finalRprjErr = info[1] / nvisibles;
         _initRprjErr = info[0] / nvisibles;

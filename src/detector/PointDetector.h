@@ -24,6 +24,7 @@ public:
 private:
 	cv::Ptr<cv::ORB> mDetector;					//!< detector
 	cv::Ptr<cv::DescriptorMatcher> mMatcher;	//!< matcher
+    int _numpts;
 };
 
 

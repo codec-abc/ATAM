@@ -3,6 +3,7 @@
 @brief		functions in CPointDetector
 */
 
+#define USE_ADAPTIVE_NON_MAXIMAL_SUPPRESION 1
 #include "PointDetector.h"
 
 /*!
@@ -13,6 +14,62 @@ CPointDetector::CPointDetector()
 	// initialize detector and matcher
 	mDetector = cv::ORB::create();
 	mMatcher = cv::DescriptorMatcher::create("BruteForce-Hamming(2)");
+}
+
+void adaptiveNonMaximalSuppresion(std::vector<cv::KeyPoint>& keypoints,
+    const int numToKeep)
+{
+    if (keypoints.size() < numToKeep)
+    {
+        return;
+    }
+
+    //
+    // Sort by response
+    //
+    std::sort(keypoints.begin(), keypoints.end(),
+        [&](const cv::KeyPoint& lhs, const cv::KeyPoint& rhs)
+    {
+        return lhs.response > rhs.response;
+    });
+
+    std::vector<cv::KeyPoint> anmsPts;
+
+    std::vector<double> radii;
+    radii.resize(keypoints.size());
+    std::vector<double> radiiSorted;
+    radiiSorted.resize(keypoints.size());
+
+    const float robustCoeff = 1.11f; // see paper
+
+    for (int i = 0; i < keypoints.size(); ++i)
+    {
+        const float response = keypoints[i].response * robustCoeff;
+        double radius = std::numeric_limits<double>::max();
+        for (int j = 0; j < i && keypoints[j].response > response; ++j)
+        {
+            radius = std::min(radius, cv::norm(keypoints[i].pt - keypoints[j].pt));
+        }
+        radii[i] = radius;
+        radiiSorted[i] = radius;
+    }
+
+    std::sort(radiiSorted.begin(), radiiSorted.end(),
+        [&](const double& lhs, const double& rhs)
+    {
+        return lhs > rhs;
+    });
+
+    const double decisionRadius = radiiSorted[numToKeep];
+    for (int i = 0; i < radii.size(); ++i)
+    {
+        if (radii[i] >= decisionRadius)
+        {
+            anmsPts.push_back(keypoints[i]);
+        }
+    }
+
+    anmsPts.swap(keypoints);
 }
 
 /*!
@@ -32,7 +89,19 @@ void CPointDetector::Init(
 	const int numlevel
 	)
 {
-	mDetector = cv::ORB::create(numpts, 1.2f, numlevel);
+    _numpts = numpts;
+	mDetector = 
+        cv::ORB::create
+        (
+
+#if USE_ADAPTIVE_NON_MAXIMAL_SUPPRESION
+            numpts * 2,
+#else
+            numpts,
+#endif
+            1.2f, 
+            numlevel
+        );
 }
 
 /*!
@@ -76,4 +145,8 @@ void CPointDetector::Detect(
 	) const
 {
 	mDetector->detect(img, vkpt);
+
+#if USE_ADAPTIVE_NON_MAXIMAL_SUPPRESION
+    adaptiveNonMaximalSuppresion(vkpt, _numpts);
+#endif
 }

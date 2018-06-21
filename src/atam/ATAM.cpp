@@ -9,13 +9,6 @@
 #include <numeric> 
 #include <fstream>
 
-//#define MIN_STEREO_DIST 0
-//#define MIN_FEATURES_POINT 10
-//#define RESET_BELOW_NB_POINTS 10
-//#define MAX_REPRO_ERROR 30
-//#define BA_MAX_ERROR 10
-
-
 extern sATAMParams PARAMS;		//!< parameters in ATAM
 
 /*!
@@ -91,7 +84,7 @@ bool CATAM::init(void)
     }
 
     // set camera parameters to ATAM
-    mCam.A.copyTo(mData.A);					// camera paramters	
+    mCam.A.copyTo(mData.A);					// camera parameters	
     mCam.D.copyTo(mData.D);					// distortion parameters
     mData.focal = mCam.A.at<double>(0, 0);	// focal length
 
@@ -174,6 +167,7 @@ void CATAM::process(void)
 
     if (_needReset)
     {
+        std::cout << "BA error too high. Resetting" << std::endl;
         reset();
         return;
     }
@@ -225,7 +219,7 @@ void CATAM::process(void)
 
             if (found && mData.vPosePair.size() == 0 && mappedPoints > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
             {
-                std::cout << "3- Change state at " << mFrameNumber << ", repro error " << reproError << std::endl;
+                std::cout << "3- Change state at " << mFrameNumber << ", reprojection error " << reproError << std::endl;
                 registerWorld();
 
                 _x = tvec.at<double>(0);
@@ -273,7 +267,7 @@ void CATAM::process(void)
             }
             if (mappedPoints < PARAMS.RESET_BELOW_NB_POINTS)
             {
-                std::cout << "RESETTING because not enough tracked points" << std::endl;
+                std::cout << "RESETTING because not enough tracked points " << mappedPoints << " expected " << PARAMS.RESET_BELOW_NB_POINTS << std::endl;
                 reset();
                 return;
             }
@@ -357,7 +351,7 @@ void CATAM::startInit(void)
 
                 _lastFrameAction = mFrameNumber;
 
-                std::cout << "1- Change state at " << mFrameNumber << ", repro error " << reproError << std::endl;
+                std::cout << "1- Change state at " << mFrameNumber << ", reprojection error " << reproError << std::endl;
                 _tvecInit1 = tvec;
                 _rvecInit1 = rvec;
             }
@@ -381,7 +375,7 @@ void CATAM::startTAM(void)
     bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
     if (makeMap() && found && _lastFrameAction != mFrameNumber && reproError < PARAMS.MAX_REPRO_ERROR)
     {
-        std::cout << "startTAM with repro error " << reproError << std::endl;
+        std::cout << "startTAM with reprojection error " << reproError << std::endl;
         // set keyframe
         setKeyframe();
 
@@ -404,7 +398,7 @@ void CATAM::changeState(void)
 {
     if (mState == STATE::STOP)
     {
-        startInit();		// initializate
+        startInit();		// initialize
     }
     else if (mState == STATE::INIT)
     {
@@ -619,7 +613,7 @@ int CATAM::trackFrame(int &nbFeaturePoints)
 }
 
 /*!
-@brief		match with keyframe near mPose amd recover points
+@brief		match with keyframe near mPose and recover points
 @retval		matched or not
 */
 bool CATAM::matchKeyframe(void)
@@ -667,10 +661,10 @@ bool CATAM::matchKeyframe(void)
         // compute camera pose
         sPose tmpPose = mPose;
         const int iteration = 100;
-        const double confidence = 0.98;
+        const double confidence = 0.99;
         std::vector<int> vInliers;
 
-        cv::solvePnPRansac
+        bool result = cv::solvePnPRansac
         (
             vPt3d, 
             vPt2d, 
@@ -678,16 +672,24 @@ bool CATAM::matchKeyframe(void)
             mData.D, 
             tmpPose.rvec, 
             tmpPose.tvec, 
-            true, 
+            true, /* useExtrinsicGuess	Parameter used for SOLVEPNP_ITERATIVE. If true (1), the function uses the provided rvec and tvec values as initial approximations of the rotation and translation vectors, respectively, and further optimizes them. */ 
             iteration, 
             PARAMS.PROJERR, 
             confidence, 
             vInliers
         );
 
+        if (result != true)
+        {
+            return false;
+        }
+
         // check number of inliers and inlier ratio (inlier / all)
-        if (int(vInliers.size()) > PARAMS.MINPTS
-            && float(vInliers.size()) / float(vPt2d.size()) > PARAMS.MATCHKEYFRAME)
+        if 
+        (
+            int(vInliers.size()) > PARAMS.MINPTS && 
+            float(vInliers.size()) / float(vPt2d.size()) > PARAMS.MATCHKEYFRAME
+        )
         {
 
             // add as a mapped track
@@ -801,39 +803,12 @@ bool CATAM::computePose(void)
     }
     else
     {
+        auto nbPoints = numAll - numDiscard;
+        std::cout << "Not enough points: " << nbPoints << " expected " << PARAMS.MINPTS << std::endl;
         return false;
     }
 }
 
-
-/*!
-@brief		compute pose from essential matrix
-@param[in]	vUnPt1	undistorted point list1
-@param[in]	vUnPt2	undistorted point list2
-@param[out]	rvec	rotation vector
-@param[out]	tvec	translation vector
-*/
-//void CATAM::computePosefromE(
-//    const std::vector<cv::Point2f> &vunpt1,
-//    const std::vector<cv::Point2f> &vunpt2,
-//    cv::Mat &rvec,
-//    cv::Mat &tvec
-//) const
-//{
-//    double focal = 1.0;
-//    cv::Point2d pp = cv::Point2d(0, 0);
-//    int method = cv::LMEDS;
-//    double prob = 0.99;
-//    double th = 1.0 / mData.focal;
-//
-//    cv::Mat mask;
-//    cv::Mat e = cv::findEssentialMat(vunpt1, vunpt2, focal, pp, method, prob, th, mask);
-//
-//    cv::Mat r;
-//    cv::recoverPose(e, vunpt1, vunpt2, r, tvec, focal, pp, mask);
-//
-//    cv::Rodrigues(r, rvec);
-//}
 
 /*!
 @brief		triangulation
@@ -942,11 +917,19 @@ bool CATAM::initialBA(
 
 #if DO_BA
         LOGOUT("initial BA with %d points\n", int(vPt3d.size()));
-        double val = mBA.run(vPt3d, imagePoints, visibility, cameraMatrix, R, T, distCoeffs);
+        double val = -1;
+        try
+        {
+            val = mBA.run(vPt3d, imagePoints, visibility, cameraMatrix, R, T, distCoeffs);
+        }
+        catch (cv::Exception& e)
+        {
+            return false;
+        }
         LOGOUT("Initial error = \t %f\n", mBA.getInitialReprjError());
         LOGOUT("Final error = \t %f\n", mBA.getFinalReprjError());
 
-        double reproError = mBA.getInitialReprjError();
+        double reproError = mBA.getFinalReprjError();
 
         if (reproError > PARAMS.BA_MAX_ERROR)
         {
@@ -1129,7 +1112,6 @@ bool CATAM::makeMap(void)
     return true;
 }
 
-
 /*!
 brief		check criteria for adding a new keyframe
 @retval		do mapping or not
@@ -1214,7 +1196,7 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
 
     if (mappedPts < PARAMS.MINPTS)
     {		// not enough mapped points
-        relocal = true;					// start relocalization
+        relocal = true;					// start re-localization
         std::cout << "RELOCAL CASE 1 " << " mapped points is " << mappedPts << " while minimum is " << PARAMS.MINPTS << std::endl;
     }
     else
@@ -1257,7 +1239,7 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
         LOGOUT("Lost\n");
         mText = "Go back to this view";
         mState = STATE::RELOCAL;*/
-        std::cout << "RESET because relocal" << std::endl;
+        std::cout << "RESET because re-localization" << std::endl;
         reset();
     }
 
@@ -1320,7 +1302,7 @@ void CATAM::whileInitialize(void)
                 _rvecInit2 = rvec;
                 _tvecInit2 = tvec;
 
-                std::cout << "2- Change state at " << mFrameNumber << ", dist is " << dist << ", repro error " << reproError << std::endl;
+                std::cout << "2- Change state at " << mFrameNumber << ", dist is " << dist << ", reprojection error " << reproError << std::endl;
 
                 changeState(); // to startTAM();
                 
@@ -1432,7 +1414,15 @@ void CATAM::BA(void)
                 }
 
                 LOGOUT("BA started with %d points %d frames\n", int(vPt3d.size()), numKeyframes);
-                double val = mBA.run(vUsedPt3d, imagePoints, visibility, cameraMatrix, R, T, distCoeffs);
+                double val = -1;
+                try
+                {
+                    val = mBA.run(vUsedPt3d, imagePoints, visibility, cameraMatrix, R, T, distCoeffs);
+                }
+                catch (cv::Exception& e)
+                {
+                    _needReset = true;
+                }
 
                 if (val < 0)
                 {
@@ -1444,7 +1434,7 @@ void CATAM::BA(void)
 
                     LOGOUT("Final error = \t %f\n", mBA.getFinalReprjError());
 
-                    double reproError = mBA.getInitialReprjError();
+                    double reproError = mBA.getFinalReprjError();
 
                     if (reproError > PARAMS.BA_MAX_ERROR)
                     {
@@ -1476,7 +1466,7 @@ void CATAM::BA(void)
         }
         else if (mainState == STATE::CLOSE)
         {
-            //break;
+            break;
         }
 
 #ifndef MULTITHREAD
@@ -1489,7 +1479,7 @@ void CATAM::BA(void)
 
 
 /*!
-@brief		transfrom local coordinate to world coordinate
+@brief		transform local coordinate to world coordinate
 @param[in]	local		local coordinate
 @param[out]	world		world coordinate
 */
@@ -1521,7 +1511,7 @@ bool CATAM::getWorldCoordinate(sPose &pose) const
     }
     else
     {
-        std::cout << "repro error is " << reproError << std::endl;
+        std::cout << "reprojection error is " << reproError << std::endl;
     }
 
     return found;
@@ -1603,7 +1593,7 @@ void CATAM::registerWorld(void)
 
 
 /*!
-@brief		change relocalization view
+@brief		change re-localization view
 */
 void CATAM::changeRelocalImage(void)
 {
@@ -1611,7 +1601,7 @@ void CATAM::changeRelocalImage(void)
 }
 
 /*!
-@brief		relocalization
+@brief		re-localization
 */
 void CATAM::relocalize(void)
 {
@@ -1623,14 +1613,14 @@ void CATAM::relocalize(void)
     {
         if (mData.haveScale)
         {
-            mText = "Relocalized";
+            mText = "Re-localized";
         }
         else
         {
             mText = "Capture calibration board and press space";
         }
 
-        LOGOUT("Relocalized\n");
+        LOGOUT("Re-localized\n");
         mState = STATE::TAM;
     }
 }
@@ -1657,7 +1647,7 @@ void CATAM::drawView(cv::Mat &img)
 }
 
 /*!
-@brief		loca challenge points
+@brief		load challenge points
 @param[in]	file name
 */
 void CATAM::loadChallenge(const std::string &name)
@@ -1751,7 +1741,7 @@ void CATAM::drawButton(cv::Mat &img)
         cv::Scalar col(0, 255, 0);
         int thickness = 1;
 
-        // show botton
+        // show buttons
         cv::rectangle(img, mvButton[i].r, col, thickness);
 
         // show text on button
@@ -1786,7 +1776,7 @@ void CATAM::checkButton(const int x, const int y)
 }
 
 /*!
-@brief		generate buttoin
+@brief		generate button
 */
 void CATAM::generateButton(void)
 {
@@ -1870,7 +1860,7 @@ bool CATAM::operation(const int key)
     else if (key == 'n' || mMouse == 'n')
     {
         if (mState == STATE::RELOCAL)
-        {		// change image for relocalization
+        {		// change image for re-localization
             changeRelocalImage();
         }
         else if (mState == STATE::TAM)
