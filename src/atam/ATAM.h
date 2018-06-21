@@ -17,6 +17,7 @@
 #include "cvsba.h"
 
 #define DO_BA 1
+#define ONLY_DO_INITIAL_BA 1
 
 /*!
 @class		CATAM

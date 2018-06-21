@@ -48,7 +48,7 @@ namespace cvsba
             Params 
             ( 
                 TYPE t= MOTIONSTRUCTURE, // MOTIONSTRUCTURE
-                int iters = 10, 
+                int iters = 12, 
                 double minErr = 1e-10,
                 int  fixedIntri = 5,
                 int  fixedDist = 5,

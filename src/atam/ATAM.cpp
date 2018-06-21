@@ -35,7 +35,7 @@ void CATAM::Start(void)
 
     // start
 #ifdef MULTITHREAD
-    #if DO_BA
+    #if DO_BA && !ONLY_DO_INITIAL_BA
             std::thread BA(&CATAM::BA, this);
             mainLoop();
             BA.join();
@@ -428,7 +428,7 @@ void CATAM::reset(void)
 
     _needReset = false;
 
-#if DO_BA
+#if DO_BA && !ONLY_DO_INITIAL_BA
         // stop BA
         bool tmp = true;
         while (tmp)
@@ -1212,7 +1212,7 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
 
             bool doMapping = mappingCriteria();
 
-#if DO_BA
+#if DO_BA && !ONLY_DO_INITIAL_BA
 
             bool tmp = true;
             mBAMutex.lock();
@@ -1322,7 +1322,7 @@ void CATAM::whileInitialize(void)
 /*!
 @brief		local bundle adjustment
 */
-#if DO_BA
+#if DO_BA && !ONLY_DO_INITIAL_BA
 
 void CATAM::BA(void)
 {
@@ -1988,7 +1988,7 @@ void CATAM::drawGrid(cv::Mat &img) const
 
         const int size = 3;		// grid size
         std::vector<cv::Point3f> vPt3d(2 * size);		// for two sides
-        const float interval = 3 * 27;
+        const float interval = 3 * CHESSBOARD_SIZE;
 
         // y axis
         for (int i = 0; i < size; ++i)

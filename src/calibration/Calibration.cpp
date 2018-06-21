@@ -13,7 +13,7 @@ CCalibration::CCalibration()
     // define size of calibration board and its pattern
 #ifdef CHESSBOARD
     mPattern = cv::Size(9, 6);
-    mSize = 27.f;
+    mSize = CHESSBOARD_SIZE;
 #else
     mPattern = cv::Size(4, 11);
     mSize = 34.f;
