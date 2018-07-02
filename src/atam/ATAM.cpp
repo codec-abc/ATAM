@@ -123,11 +123,23 @@ void CATAM::mainLoop(void)
         timer.Push(__FUNCTION__);
 
         // get color image and convert it to gray scale
+        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
         mCam.Get(mImg);
         cv::cvtColor(mImg, mGImg, cv::COLOR_BGR2GRAY);
 
+        std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+        auto frame_duration = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+
+        printf("image retrieval and convert took : %f ms \n ", frame_duration);
+
         // process
+
+        std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
         process();
+
+        std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+        frame_duration = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+        printf( "process took : %f \n\n\n", frame_duration);
 
         // get FPS
         double duration = double(timer.Pop());
@@ -162,18 +174,21 @@ void CATAM::mainLoop(void)
 */
 void CATAM::process(void)
 {
-    //std::cout << "process " << mFrameNumber << std::endl;
     // detect keypoint
 
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     if (_needReset)
     {
-        std::cout << "BA error too high. Resetting" << std::endl;
+        printf( "BA error too high. Resetting\n");
         reset();
         return;
     }
-
     mData.vKpt.clear();
     mDetector.Detect(mGImg, mData.vKpt);
+
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+    printf("[process] keypoints clear & detector detect : %f ms \n", duration_ms);
 
     // each process
     switch (mState)
@@ -183,33 +198,32 @@ void CATAM::process(void)
         break;
     case STATE::TAM:
     {
+        std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
         int nbFeatureTrackedPoint;
         int trackedPoints = trackAndMap(nbFeatureTrackedPoint);
+
+        std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+        auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+        printf( "[process] trackAndMap took : %f ms\n", duration_ms);
+
         if (!mData.haveScale)
         {
             cv::Mat rvec, tvec;
             double reproError = 0;
             bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
 
-            const std::list<sTrack> &vTrack = mData.vTrack;
             int totalPoints = 0;
             int mappedPoints = 0;
             int newPoints = 0;
 
-            for (std::list<sTrack>::const_iterator it = vTrack.begin(), itend = vTrack.end();
-                it != itend; ++it)
-            {
-                if (it->ptID != NOID)
-                {
-                    mappedPoints++;
-                }
-                else
-                {
-                    newPoints++;
-                }
-                totalPoints++;
-            }
-            //std::cout << "[3] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
+            getPointsCount(totalPoints, mappedPoints, newPoints);
+
+            printf
+            (
+                "[3] Features points : %i tracked points : %i\n",
+                newPoints,
+                mappedPoints
+            );
 
             if (mappedPoints < PARAMS.RESET_BELOW_NB_POINTS)
             {
@@ -219,7 +233,13 @@ void CATAM::process(void)
 
             if (found && mData.vPosePair.size() == 0 && mappedPoints > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
             {
-                std::cout << "3- Change state at " << mFrameNumber << ", reprojection error " << reproError << std::endl;
+                printf
+                (
+                    "3- Change state at %i, reprojection error %f \n",
+                    mFrameNumber,
+                    reproError
+                );
+
                 registerWorld();
 
                 _x = tvec.at<double>(0);
@@ -237,9 +257,12 @@ void CATAM::process(void)
 
                 if (dist > PARAMS.MIN_STEREO_DIST)
                 {
-                    std::cout << "4- Change state at " << mFrameNumber << ", dist is " << dist << std::endl;
-                    /*std::cout << x << " " << y << " " << z << std::endl;
-                    std::cout << _x << " " << _y << " " << _z << std::endl;*/
+                    printf
+                    (
+                        "4- Change state at %i, dist is %f\n",
+                        mFrameNumber,
+                        dist
+                    );
                     registerWorld();
 
                 }
@@ -247,33 +270,31 @@ void CATAM::process(void)
         }
         else
         {
-            const std::list<sTrack> &vTrack = mData.vTrack;
             int totalPoints = 0;
             int mappedPoints = 0;
             int newPoints = 0;
 
-            for (std::list<sTrack>::const_iterator it = vTrack.begin(), itend = vTrack.end();
-                it != itend; ++it)
-            {
-                if (it->ptID != NOID)
-                {
-                    mappedPoints++;
-                }
-                else
-                {
-                    newPoints++;
-                }
-                totalPoints++;
-            }
+            getPointsCount(totalPoints, mappedPoints, newPoints);
+
             if (mappedPoints < PARAMS.RESET_BELOW_NB_POINTS)
             {
-                std::cout << "RESETTING because not enough tracked points " << mappedPoints << " expected " << PARAMS.RESET_BELOW_NB_POINTS << std::endl;
+                printf
+                (
+                    "RESETTING because not enough tracked points %i expected %i\n",
+                    mappedPoints,
+                    PARAMS.RESET_BELOW_NB_POINTS
+                );
+
                 reset();
                 return;
             }
         }
+
+        std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
+        duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count()) / 1000.0f;
+        printf( "[process] inner case 2nd part took : %f ms \n", duration_ms);
     }
-    break;
+        break;
     case STATE::RELOCAL:
         relocalize();
         break;
@@ -288,7 +309,14 @@ void CATAM::process(void)
     }
 
     // keep image for tracking in next image
+    std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
     mGImg.copyTo(mData.prevGImg);
+
+    std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count()) / 1000.0f;
+    printf( "[process] mGimgCopy : %f ms \n", duration_ms);
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count()) / 1000.0f;;
+    printf( "[process] total : %f ms \n", duration_ms);
 }
 
 /*!
@@ -317,26 +345,18 @@ void CATAM::startInit(void)
         }
         else
         {
-            const std::list<sTrack> &vTrack = mData.vTrack;
             int totalPoints = 0;
             int mappedPoints = 0;
             int newPoints = 0;
 
-            for (std::list<sTrack>::const_iterator it = vTrack.begin(), itend = vTrack.end();
-                it != itend; ++it)
-            {
-                if (it->ptID != NOID)
-                {
-                    mappedPoints++;
-                }
-                else
-                {
-                    newPoints++;
-                }
-                totalPoints++;
-            }
+            getPointsCount(totalPoints, mappedPoints, newPoints);
 
-            //std::cout << "[1] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
+            printf
+            (
+                "[1] Features points : %i tracked points : %i\n",
+                newPoints,
+                mappedPoints
+            );
 
             if (newPoints < PARAMS.MIN_FEATURES_POINT || reproError >= PARAMS.MAX_REPRO_ERROR)
             {
@@ -351,7 +371,13 @@ void CATAM::startInit(void)
 
                 _lastFrameAction = mFrameNumber;
 
-                std::cout << "1- Change state at " << mFrameNumber << ", reprojection error " << reproError << std::endl;
+                printf
+                (
+                    "1- Change state at %i, reprojection error %f\n",
+                    mFrameNumber,
+                    reproError
+                );
+
                 _tvecInit1 = tvec;
                 _rvecInit1 = rvec;
             }
@@ -375,7 +401,8 @@ void CATAM::startTAM(void)
     bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
     if (makeMap() && found && _lastFrameAction != mFrameNumber && reproError < PARAMS.MAX_REPRO_ERROR)
     {
-        std::cout << "startTAM with reprojection error " << reproError << std::endl;
+        printf("startTAM with reprojection error %f\n", reproError);
+
         // set keyframe
         setKeyframe();
 
@@ -571,6 +598,8 @@ int CATAM::trackFrame(int &nbFeaturePoints)
     const cv::Size patch(PARAMS.PATCHSIZE, PARAMS.PATCHSIZE);
     cv::TermCriteria criteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 10, 0.1);
 
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
     // KLT
     cv::calcOpticalFlowPyrLK
     (
@@ -582,6 +611,10 @@ int CATAM::trackFrame(int &nbFeaturePoints)
         vError, 
         patch
     );
+
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+    printf( "    [trackFrame] calcOpticalFlowPyrLK : %f ms \n", duration_ms);
 
     // remove point from tracks if point not tracked
     int count = 0;
@@ -625,7 +658,14 @@ bool CATAM::matchKeyframe(void)
         return false;
     }
     cv::Mat vDesc;
+
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     mDetector.Describe(mGImg, vKpt, vDesc);
+
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+    printf( "    [matchKeyFrame] detector describe : %f ms \n", duration_ms);
+
 
     // get nearest keyframe
     const sKeyframe& kf = mData.map.GetNearestKeyframe(mPose);
@@ -636,7 +676,12 @@ bool CATAM::matchKeyframe(void)
 
     // matching
     std::vector<cv::DMatch> vMatch;
+    std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
     mDetector.Match(vDesc, kf.vDesc, vMatch);
+
+    std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+    printf( "    [matchKeyFrame] detector match : %f ms \n", duration_ms);
 
     std::vector<cv::Point3f> vPt3d;
     std::vector<cv::Point2f> vPt2d;
@@ -655,6 +700,10 @@ bool CATAM::matchKeyframe(void)
         }
     }
 
+    std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count()) / 1000.0f;
+    printf( "    [matchKeyFrame] selecting good matches took : %f ms \n", duration_ms);
+
     if (vPt2d.size() > PARAMS.MINPTS)
     {	// if enough good correspondences
 
@@ -663,6 +712,8 @@ bool CATAM::matchKeyframe(void)
         const int iteration = 100;
         const double confidence = 0.99;
         std::vector<int> vInliers;
+
+        std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
 
         bool result = cv::solvePnPRansac
         (
@@ -679,6 +730,10 @@ bool CATAM::matchKeyframe(void)
             vInliers
         );
 
+        std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+        auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t7 - t6).count()) / 1000.0f;
+        printf( "    [matchKeyFrame] solvePnPRansac  %f ms \n", duration_ms);
+
         if (result != true)
         {
             return false;
@@ -691,6 +746,7 @@ bool CATAM::matchKeyframe(void)
             float(vInliers.size()) / float(vPt2d.size()) > PARAMS.MATCHKEYFRAME
         )
         {
+            std::chrono::high_resolution_clock::time_point t8 = std::chrono::high_resolution_clock::now();
 
             // add as a mapped track
             int numRecovered = 0;
@@ -727,6 +783,12 @@ bool CATAM::matchKeyframe(void)
             }
 
             //LOGOUT("Recovered %d points with keyframe %d at %s\n", numRecovered, kf.ID, __FUNCTION__);
+
+
+            std::chrono::high_resolution_clock::time_point t9 = std::chrono::high_resolution_clock::now();
+            duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t9 - t8).count()) / 1000.0f;
+            printf( "    [matchKeyFrame] selecting good matches took : %f ms \n", duration_ms);
+
             return true;
         }
     }
@@ -804,7 +866,7 @@ bool CATAM::computePose(void)
     else
     {
         auto nbPoints = numAll - numDiscard;
-        std::cout << "Not enough points: " << nbPoints << " expected " << PARAMS.MINPTS << std::endl;
+        printf("Not enough points: %i expected %i \n", nbPoints, PARAMS.MINPTS);
         return false;
     }
 }
@@ -887,7 +949,7 @@ bool CATAM::initialBA(
         double z2 = pose2.tvec.at<double>(2);
 
         double dist = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)); // + (z1 - z2) * (z1 - z2)
-        //std::cout << "!!!! Initial distance " << dist << std::endl;
+        printf("Initial distance %f \n", dist);
     }
 
     std::vector< std::vector<cv::Point2f> > imagePoints(2);
@@ -958,7 +1020,7 @@ bool CATAM::initialBA(
     double z2 = pose2.tvec.at<double>(2);
 
     double dist = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)); // + (z1 - z2) * (z1 - z2)
-    //std::cout << "!!!! final distance " << dist << std::endl;
+    printf("final distance %f \n", dist);
 
     return true;
 }
@@ -1029,7 +1091,7 @@ bool CATAM::makeMap(void)
 
         /* for (auto it = vPt3d.begin(); it != vPt3d.end(); it++)
         {
-            std::cout << it->x << " " << it->y << " " << it->z << std::endl;
+            printf( it->x << " " << it->y << " " << it->z << "\n";
         }
         */
 
@@ -1039,18 +1101,6 @@ bool CATAM::makeMap(void)
         }
         else
         {
-            /*
-            std::cout << "------------" << std::endl;
-            std::cout << "------------" << std::endl;
-            std::cout << "------------" << std::endl;
-            std::cout << "------------" << std::endl;
-            std::cout << "------------" << std::endl;
-
-            for (auto it = vPt3d.begin(); it != vPt3d.end(); it++)
-            {
-                std::cout << it->x << " " << it->y << " " << it->z << std::endl;
-            }
-            */
 
             lkf.pose = tmpPose;
         }
@@ -1189,29 +1239,52 @@ void CATAM::mapping(void)
 */
 int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
 {
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
     bool relocal = false;
 
     //int nbTrackedFeaturePoints;
     int mappedPts = trackFrame(nbTrackedFeaturePoints);		// track points
 
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+    printf( "  [trackAndMap] trackFrame : %f ms \n", duration_ms);
+
     if (mappedPts < PARAMS.MINPTS)
     {		// not enough mapped points
         relocal = true;					// start re-localization
-        std::cout << "RELOCAL CASE 1 " << " mapped points is " << mappedPts << " while minimum is " << PARAMS.MINPTS << std::endl;
+        printf
+        (
+            "RELOCAL CASE 1  mapped points is %i while minimum is %i \n",
+            mappedPts,
+            PARAMS.MINPTS
+        );
     }
     else
     {
         if (!computePose())
         {
-            std::cout << "RELOCAL CASE 2" << std::endl;
+            printf("RELOCAL CASE 2 \n");
             relocal = true;
         }
         else
         {
+            std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+            duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count()) / 1000.0f;
+            printf( "  [trackAndMap] computePose : %f ms \n", duration_ms);
+
             matchKeyframe();		// match with keyframe
 
-            bool doMapping = mappingCriteria();
+            std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+            duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+            printf( "  [trackAndMap] matchKeyFrame : %f ms \n", duration_ms);
 
+
+            std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+            bool doMapping = mappingCriteria();
+            std::chrono::high_resolution_clock::time_point t8 = std::chrono::high_resolution_clock::now();
+            auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t8 - t7).count()) / 1000.0f;
+            printf( "  [trackAndMap] mappingCriteria : %f ms \n", duration_ms);
 #if DO_BA && !ONLY_DO_INITIAL_BA
 
             bool tmp = true;
@@ -1228,6 +1301,9 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
             if (doMapping)
             {
                 mapping();
+                std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
+                duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t8).count()) / 1000.0f;
+                printf( "  [trackAndMap] mapping : %f ms \n", duration_ms);
             }
 #endif
         }
@@ -1239,7 +1315,7 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
         LOGOUT("Lost\n");
         mText = "Go back to this view";
         mState = STATE::RELOCAL;*/
-        std::cout << "RESET because re-localization" << std::endl;
+        printf("RESET because re-localization\n");
         reset();
     }
 
@@ -1260,31 +1336,29 @@ void CATAM::whileInitialize(void)
         double reproError = 0;
         bool found = mCalibrator.EstimatePose(mGImg, mData.A, mData.D, rvec, tvec, reproError);
 
-        const std::list<sTrack> &vTrack = mData.vTrack;
         int totalPoints = 0;
         int mappedPoints = 0;
         int newPoints = 0;
 
-        for (std::list<sTrack>::const_iterator it = vTrack.begin(), itend = vTrack.end();
-            it != itend; ++it)
-        {
-            if (it->ptID != NOID)
-            {
-                mappedPoints++;
-            }
-            else
-            {
-                newPoints++;
-            }
-            totalPoints++;
-        }
+        getPointsCount(totalPoints, mappedPoints, newPoints);
 
         if (newPoints < PARAMS.RESET_BELOW_NB_POINTS)
         {
             reset();
             return;
         }
-        //std::cout << "[2] Features points : " << newPoints << " tracked points : " << mappedPoints << std::endl;
+
+        if (!found)
+        {
+            return;
+        }
+
+        printf
+        (
+            "[2] Features points : %i tracked points : %i \n",
+            newPoints,
+            mappedPoints
+        );
 
         if (found && nbTrackedFeaturePoints > PARAMS.MIN_FEATURES_POINT && reproError < PARAMS.MAX_REPRO_ERROR)
         {
@@ -1302,12 +1376,15 @@ void CATAM::whileInitialize(void)
                 _rvecInit2 = rvec;
                 _tvecInit2 = tvec;
 
-                std::cout << "2- Change state at " << mFrameNumber << ", dist is " << dist << ", reprojection error " << reproError << std::endl;
+                printf
+                (
+                    "2- Change state at %i, dist is %f, reprojection error %f\n",
+                    mFrameNumber,
+                    dist,
+                    reproError
+                );
 
                 changeState(); // to startTAM();
-                
-                /*std::cout << _x << " " << _y << " " << _z << std::endl;
-                std::cout << x << " " << y << " " << z << std::endl;*/
 
             }
         }
@@ -1511,7 +1588,7 @@ bool CATAM::getWorldCoordinate(sPose &pose) const
     }
     else
     {
-        std::cout << "reprojection error is " << reproError << std::endl;
+        printf("reprojection error is %f\n", reproError);
     }
 
     return found;
@@ -1522,7 +1599,7 @@ bool CATAM::getWorldCoordinate(sPose &pose) const
 */
 void CATAM::registerWorld(void)
 {
-    std::cout << "Registering world at " << mFrameNumber << std::endl;
+    printf("Registering world at %f\n", mFrameNumber);
     // get pair of world and local pose
     sPose world;
     if (getWorldCoordinate(world))
@@ -1585,7 +1662,7 @@ void CATAM::registerWorld(void)
 
         mData.haveScale = true;
 
-        std::cout << "Average scale factor is " << mData.scale << std::endl;
+        printf("Average scale factor is %f\n", mData.scale);
 
         mText = "Capture more for improvement";
     }
@@ -1988,7 +2065,8 @@ void CATAM::drawGrid(cv::Mat &img) const
 
         const int size = 3;		// grid size
         std::vector<cv::Point3f> vPt3d(2 * size);		// for two sides
-        const float interval = 3 * CHESSBOARD_SIZE;
+        const float interval = CHESSBOARD_SIZE;
+        //const float interval = 3 * CHESSBOARD_SIZE * 10;
 
         // y axis
         for (int i = 0; i < size; ++i)
@@ -2048,5 +2126,24 @@ void CATAM::drawTrack(cv::Mat &img) const
             //cv::circle(img, cv::Point(it->vPt.back()), pointSize, border, -1);
             cv::circle(img, cv::Point(it->vPt.back()), pointSize - 1, newpt, -1);
         }
+    }
+}
+
+void CATAM::getPointsCount(int &totalPoints, int &mappedPoints, int &newPoints) const
+{
+    const std::list<sTrack> &vTrack = mData.vTrack;
+
+    for (std::list<sTrack>::const_iterator it = vTrack.begin(), itend = vTrack.end();
+        it != itend; ++it)
+    {
+        if (it->ptID != NOID)
+        {
+            mappedPoints++;
+        }
+        else
+        {
+            newPoints++;
+        }
+        totalPoints++;
     }
 }

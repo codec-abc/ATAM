@@ -4,6 +4,8 @@
 */
 
 #include "Calibration.h"
+#include <iostream>
+#include <chrono>
 
 /*!
 @brief		constructor
@@ -48,7 +50,7 @@ bool CCalibration::EstimatePose(
     const cv::Mat &D,
     cv::Mat &rvec,
     cv::Mat &tvec,
-    double &reproError 
+    double &reproError
 ) const
 {
     reproError = 0;
@@ -104,15 +106,19 @@ bool CCalibration::DetectCorners(const cv::Mat &gImg, std::vector<cv::Point2f> &
 {
     bool found = false;
 
-#ifdef CHESSBOARD
-    found = cv::findChessboardCorners(gImg, mPattern, vCorner);
+    found =
+        cv::findChessboardCorners
+        (
+            gImg,
+            mPattern,
+            vCorner,
+            cv::CALIB_CB_FAST_CHECK //cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_NORMALIZE_IMAGE +
+        );
+
     if (found)
     {
         cv::cornerSubPix(gImg, vCorner, cv::Size(5, 5), cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.1));
     }
-#else
-    found = cv::findCirclesGrid(img, mPattern, vcorner, cv::CALIB_CB_ASYMMETRIC_GRID);
-#endif
 
     return found;
 }

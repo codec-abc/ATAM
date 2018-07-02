@@ -106,10 +106,11 @@ private:
 	void drawMap(cv::Mat &img) const;
 	void drawGrid(cv::Mat &img) const;
 	void drawTrack(cv::Mat &img) const;
+    void getPointsCount(int &totalPoints, int &mappedPoints, int &newPoints) const;
 
 private:
 	CCam mCam;			//!< camera
-	cv::Mat mImg;		//!< current image (from camera)
+    cv::Mat mImg;		//!< current image (from camera)
 	cv::Mat mGImg;		//!< current image (gray scale)
 	sPose mPose;		//!< current local camera pose
 	sPose mWPose;		//!< current world camera pose

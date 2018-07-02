@@ -7,7 +7,7 @@
 
 #include "opencv2/opencv.hpp"
 
-#define CHESSBOARD_SIZE 27.0f
+#define CHESSBOARD_SIZE 21.0f
 
 /*!
 @class		CCalibration
