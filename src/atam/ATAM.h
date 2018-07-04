@@ -18,6 +18,7 @@
 
 #define DO_BA 1
 #define ONLY_DO_INITIAL_BA 1
+#define SLAM_PROFILING 0
 
 /*!
 @class		CATAM

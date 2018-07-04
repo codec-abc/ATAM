@@ -123,10 +123,12 @@ void CATAM::mainLoop(void)
         timer.Push(__FUNCTION__);
 
         // get color image and convert it to gray scale
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
         mCam.Get(mImg);
         cv::cvtColor(mImg, mGImg, cv::COLOR_BGR2GRAY);
-
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         auto frame_duration = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
 
@@ -135,12 +137,14 @@ void CATAM::mainLoop(void)
         // process
 
         std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
         process();
-
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
         frame_duration = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
-        printf( "process took : %f \n\n\n", frame_duration);
-
+        //printf( "process took : %f\n", frame_duration);
+        puts("\n\n");
+#endif
         // get FPS
         double duration = double(timer.Pop());
         mFPS = 1.0 / duration * 1000.0;
@@ -175,8 +179,9 @@ void CATAM::mainLoop(void)
 void CATAM::process(void)
 {
     // detect keypoint
-
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
     if (_needReset)
     {
         printf( "BA error too high. Resetting\n");
@@ -185,10 +190,11 @@ void CATAM::process(void)
     }
     mData.vKpt.clear();
     mDetector.Detect(mGImg, mData.vKpt);
-
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
     printf("[process] keypoints clear & detector detect : %f ms \n", duration_ms);
+#endif
 
     // each process
     switch (mState)
@@ -198,14 +204,16 @@ void CATAM::process(void)
         break;
     case STATE::TAM:
     {
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
         int nbFeatureTrackedPoint;
         int trackedPoints = trackAndMap(nbFeatureTrackedPoint);
-
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
         auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
         printf( "[process] trackAndMap took : %f ms\n", duration_ms);
-
+#endif
         if (!mData.haveScale)
         {
             cv::Mat rvec, tvec;
@@ -289,10 +297,11 @@ void CATAM::process(void)
                 return;
             }
         }
-
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
         duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count()) / 1000.0f;
         printf( "[process] inner case 2nd part took : %f ms \n", duration_ms);
+#endif
     }
         break;
     case STATE::RELOCAL:
@@ -309,14 +318,20 @@ void CATAM::process(void)
     }
 
     // keep image for tracking in next image
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
+#endif
     mGImg.copyTo(mData.prevGImg);
 
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
+    /*
     duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count()) / 1000.0f;
     printf( "[process] mGimgCopy : %f ms \n", duration_ms);
-    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count()) / 1000.0f;;
-    printf( "[process] total : %f ms \n", duration_ms);
+    */
+    auto duration_ms_ = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count()) / 1000.0f;;
+    printf( "[process] total : %f ms \n", duration_ms_);
+#endif
 }
 
 /*!
@@ -592,13 +607,21 @@ bool CATAM::checkInsideImage(const cv::Point2f &pt) const
 */
 int CATAM::trackFrame(int &nbFeaturePoints)
 {
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
+
     std::vector<cv::Point2f> vTracked;
     std::vector<unsigned char> vStatus;
     std::vector<float> vError;
     const cv::Size patch(PARAMS.PATCHSIZE, PARAMS.PATCHSIZE);
-    cv::TermCriteria criteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 10, 0.1);
 
-    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    cv::TermCriteria criteria
+    (
+        cv::TermCriteria::COUNT + cv::TermCriteria::EPS, // type
+        10, // maxcount
+        0.1 // epsilon
+    );
 
     // KLT
     cv::calcOpticalFlowPyrLK
@@ -609,14 +632,20 @@ int CATAM::trackFrame(int &nbFeaturePoints)
         vTracked, 
         vStatus, 
         vError, 
-        patch
+        patch,
+        3 /*maxLevel*/,
+        criteria /*criteria*/,
+        0 /*flag*/,
+        0.01 /*minEigThreshold*/
     );
-
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
     printf( "    [trackFrame] calcOpticalFlowPyrLK : %f ms \n", duration_ms);
 
     // remove point from tracks if point not tracked
+    std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
     int count = 0;
     mData.vPrevPt.clear();
 
@@ -642,6 +671,11 @@ int CATAM::trackFrame(int &nbFeaturePoints)
         }
     }
 
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+    printf("    [trackFrame] remove point from tracks if point not tracked took %f ms\n", duration_ms);
+#endif
     return count;
 }
 
@@ -658,14 +692,15 @@ bool CATAM::matchKeyframe(void)
         return false;
     }
     cv::Mat vDesc;
-
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
     mDetector.Describe(mGImg, vKpt, vDesc);
-
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
     printf( "    [matchKeyFrame] detector describe : %f ms \n", duration_ms);
-
+#endif
 
     // get nearest keyframe
     const sKeyframe& kf = mData.map.GetNearestKeyframe(mPose);
@@ -676,12 +711,16 @@ bool CATAM::matchKeyframe(void)
 
     // matching
     std::vector<cv::DMatch> vMatch;
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
     mDetector.Match(vDesc, kf.vDesc, vMatch);
 
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
     duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
     printf( "    [matchKeyFrame] detector match : %f ms \n", duration_ms);
+#endif
 
     std::vector<cv::Point3f> vPt3d;
     std::vector<cv::Point2f> vPt2d;
@@ -700,17 +739,19 @@ bool CATAM::matchKeyframe(void)
         }
     }
 
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
     duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count()) / 1000.0f;
     printf( "    [matchKeyFrame] selecting good matches took : %f ms \n", duration_ms);
+#endif
 
     if (vPt2d.size() > PARAMS.MINPTS)
     {	// if enough good correspondences
 
         // compute camera pose
         sPose tmpPose = mPose;
-        const int iteration = 100;
-        const double confidence = 0.99;
+        const int iteration = 20;
+        const double confidence = 0.95;
         std::vector<int> vInliers;
 
         std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
@@ -730,9 +771,11 @@ bool CATAM::matchKeyframe(void)
             vInliers
         );
 
+#if SLAM_PROFILING
         std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
         auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t7 - t6).count()) / 1000.0f;
         printf( "    [matchKeyFrame] solvePnPRansac  %f ms \n", duration_ms);
+#endif
 
         if (result != true)
         {
@@ -784,11 +827,11 @@ bool CATAM::matchKeyframe(void)
 
             //LOGOUT("Recovered %d points with keyframe %d at %s\n", numRecovered, kf.ID, __FUNCTION__);
 
-
+#if SLAM_PROFILING
             std::chrono::high_resolution_clock::time_point t9 = std::chrono::high_resolution_clock::now();
             duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t9 - t8).count()) / 1000.0f;
-            printf( "    [matchKeyFrame] selecting good matches took : %f ms \n", duration_ms);
-
+            printf( "    [matchKeyFrame] check number of inliers and inlier ratio took : %f ms \n", duration_ms);
+#endif
             return true;
         }
     }
@@ -803,6 +846,9 @@ bool CATAM::matchKeyframe(void)
 bool CATAM::computePose(void)
 {
     // pose estimation
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
     std::vector<cv::Point2f> vPt2d;
     std::vector<cv::Point3f> vPt3d;
 
@@ -816,6 +862,14 @@ bool CATAM::computePose(void)
         }
     }
 
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
+    printf("   [computePose] preparing solvePnP took %f ms\n", duration_ms);
+#endif
+
+    std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+
     cv::solvePnP
     (
         vPt3d, 
@@ -824,9 +878,17 @@ bool CATAM::computePose(void)
         mData.D, 
         mPose.rvec, 
         mPose.tvec, 
-        true
+        true /* useExtrinsicsGuess */,
+        cv::SOLVEPNP_ITERATIVE /* flags */
     );
 
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
+    printf("   [computePose] solvePnP took %f ms\n", duration_ms);
+#endif
+
+    std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
     // check reprojection error and discard points if error is large
     std::vector< cv::Point2f > vReproPt;
     cv::projectPoints(vPt3d, mPose.rvec, mPose.tvec, mData.A, mData.D, vReproPt);
@@ -852,21 +914,42 @@ bool CATAM::computePose(void)
     }
 
     mData.clearTrack(DISCARD);
+
     //LOGOUT("Discarded:%d used:%d at %s\n", numDiscard, numAll - numDiscard, __FUNCTION__);
 
     if (mData.haveScale)
     {
         transformToWorld(mPose, mWPose);
     }
+#if SLAM_PROFILING
+    std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count()) / 1000.0f;
+    printf("   [computePose] checking reprojection error and discarding points took %f ms\n", duration_ms);
 
-    if (numAll - numDiscard > PARAMS.MINPTS)
+    duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count()) / 1000.0f;
+    printf("   [computePose] whole function except last if %f ms\n", duration_ms);
+#endif
+    int numKept = numAll - numDiscard;
+
+    if (numKept > PARAMS.MINPTS)
     {	// if enough points not exist
+#if SLAM_PROFILING
+        std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+        duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t7 - t1).count()) / 1000.0f;
+        printf("   [computePose] whole function (case 1) took %f ms\n", duration_ms);
+#endif
         return true;
     }
     else
     {
         auto nbPoints = numAll - numDiscard;
+#if SLAM_PROFILING
         printf("Not enough points: %i expected %i \n", nbPoints, PARAMS.MINPTS);
+
+        std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+        duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t7 - t1).count()) / 1000.0f;
+        printf("   [computePose] whole function (case 2) took %f ms\n", duration_ms);
+#endif
         return false;
     }
 }
@@ -1239,17 +1322,18 @@ void CATAM::mapping(void)
 */
 int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
 {
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-
+#endif
     bool relocal = false;
 
-    //int nbTrackedFeaturePoints;
     int mappedPts = trackFrame(nbTrackedFeaturePoints);		// track points
 
+#if SLAM_PROFILING
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()) / 1000.0f;
     printf( "  [trackAndMap] trackFrame : %f ms \n", duration_ms);
-
+#endif
     if (mappedPts < PARAMS.MINPTS)
     {		// not enough mapped points
         relocal = true;					// start re-localization
@@ -1262,29 +1346,41 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
     }
     else
     {
-        if (!computePose())
+#if SLAM_PROFILING
+        std::chrono::high_resolution_clock::time_point t22 = std::chrono::high_resolution_clock::now();
+#endif
+        bool is_pose_computed = computePose();
+#if SLAM_PROFILING
+        std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+        duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t3 - t22).count()) / 1000.0f;
+        printf("  [trackAndMap] computePose : %f ms \n", duration_ms);
+        std::chrono::high_resolution_clock::time_point t33 = std::chrono::high_resolution_clock::now();
+#endif
+        if (!is_pose_computed)
         {
             printf("RELOCAL CASE 2 \n");
             relocal = true;
         }
         else
         {
-            std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
-            duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count()) / 1000.0f;
-            printf( "  [trackAndMap] computePose : %f ms \n", duration_ms);
-
+#if SLAM_PROFILING
+            std::chrono::high_resolution_clock::time_point t44 = std::chrono::high_resolution_clock::now();
+            duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t44 - t33).count()) / 1000.0f;
+            printf("  [trackAndMap] entering else took : %f ms \n", duration_ms);
+#endif
             matchKeyframe();		// match with keyframe
-
+#if SLAM_PROFILING
             std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
             duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count()) / 1000.0f;
             printf( "  [trackAndMap] matchKeyFrame : %f ms \n", duration_ms);
-
-
             std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+#endif
             bool doMapping = mappingCriteria();
+#if SLAM_PROFILING
             std::chrono::high_resolution_clock::time_point t8 = std::chrono::high_resolution_clock::now();
             auto duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t8 - t7).count()) / 1000.0f;
             printf( "  [trackAndMap] mappingCriteria : %f ms \n", duration_ms);
+#endif
 #if DO_BA && !ONLY_DO_INITIAL_BA
 
             bool tmp = true;
@@ -1301,9 +1397,11 @@ int CATAM::trackAndMap(int &nbTrackedFeaturePoints)
             if (doMapping)
             {
                 mapping();
+#if SLAM_PROFILING
                 std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
                 duration_ms = (std::chrono::duration_cast<std::chrono::microseconds>(t5 - t8).count()) / 1000.0f;
                 printf( "  [trackAndMap] mapping : %f ms \n", duration_ms);
+#endif
             }
 #endif
         }
@@ -1599,7 +1697,7 @@ bool CATAM::getWorldCoordinate(sPose &pose) const
 */
 void CATAM::registerWorld(void)
 {
-    printf("Registering world at %f\n", mFrameNumber);
+    printf("Registering world at %i\n", mFrameNumber);
     // get pair of world and local pose
     sPose world;
     if (getWorldCoordinate(world))
