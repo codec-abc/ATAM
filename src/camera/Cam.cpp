@@ -165,6 +165,9 @@ bool CCam::Open(
 		mCap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
 		mCap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
+        //mCap.set(cv::CAP_PROP_FRAME_WIDTH, 320);
+        //mCap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
+
         //mCap.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
         //mCap.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
 	

@@ -3,7 +3,7 @@
 @brief		functions in CPointDetector
 */
 
-#define USE_ADAPTIVE_NON_MAXIMAL_SUPPRESION 1
+#define USE_ADAPTIVE_NON_MAXIMAL_SUPPRESION 0
 #include "PointDetector.h"
 
 /*!
